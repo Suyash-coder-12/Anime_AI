@@ -1,1 +1,327 @@
-# Anime_AI
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroNova AI - 3D Gyro Core</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --neon-cyan: #00ff9d; --neon-blue: #00bcd4; --alert-red: #ff3838;
+            --bg-dark: #020204; --panel-bg: rgba(2, 8, 12, 0.85);
+        }
+        body.error-mode { --neon-cyan: var(--alert-red); --neon-blue: #ff5722; }
+        body { 
+            color: var(--neon-cyan); font-family: 'Share Tech Mono', monospace; 
+            background-color: var(--bg-dark); overflow: hidden; margin: 0;
+        }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .hacker-panel { background: var(--panel-bg); border: 1px solid var(--neon-cyan); box-shadow: 0 0 15px rgba(0, 255, 157, 0.2); backdrop-filter: blur(5px); padding: 15px; border-radius: 4px; transition: 0.3s; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        .sleek-input { background: rgba(0,0,0,0.8); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); border-radius: 4px; transition: 0.3s; width: 100%; padding: 12px; text-align: center; letter-spacing: 2px; }
+        .sleek-input:focus { box-shadow: 0 0 10px var(--neon-cyan); outline: none; }
+        .sleek-btn { background: var(--neon-cyan); color: #000; border: none; font-weight: bold; border-radius: 4px; letter-spacing: 3px; cursor: pointer; width: 100%; padding: 12px; transition: 0.3s; }
+        .sleek-btn:hover { box-shadow: 0 0 15px var(--neon-cyan); background: #fff; }
+        
+        #scene-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; pointer-events: none; 
+        }
+        .ui-layer { position: relative; z-index: 10; pointer-events: auto; }
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-center">
+
+    <div id="scene-container"></div>
+
+    <div class="absolute top-4 w-full px-8 flex justify-between items-center z-50 font-mono text-xs ui-layer">
+        <div class="flex items-center gap-2">
+            <div id="mic-status-dot" class="w-3 h-3 bg-[var(--alert-red)] rounded-full shadow-[0_0_10px_var(--alert-red)] transition-all duration-300"></div>
+            <p class="tracking-widest">AUDIO: <span id="mic-text" class="text-[var(--alert-red)]">OFFLINE</span></p>
+        </div>
+        <div class="flex gap-4">
+            <button id="btn-reboot" class="hover:text-white transition-colors tracking-widest">[ REBOOT ]</button>
+            <button id="btn-exit" class="text-[var(--alert-red)] hover:text-white transition-colors tracking-widest">[ EXIT ]</button>
+        </div>
+    </div>
+
+    <div id="setup-screen" class="absolute z-40 hacker-panel p-8 text-center w-[90%] max-w-md transition-all duration-500 ui-layer">
+        <h2 class="text-2xl font-bold mb-2 orbitron tracking-widest text-white">NEURONOVA 3D</h2>
+        <p id="setup-status" class="text-[var(--neon-cyan)] text-[10px] mb-6 tracking-[0.4em] uppercase">Core Initialization</p>
+        <div class="flex flex-col gap-3 mb-6">
+            <input type="password" id="api-input" placeholder="ENTER NEURAL API KEY" class="sleek-input text-sm text-gray-300">
+        </div>
+        <button id="btn-ignite" class="sleek-btn text-sm orbitron">IGNITE CORE</button>
+        <p id="setup-error" class="text-[10px] text-[var(--alert-red)] mt-4 h-4 tracking-widest font-bold"></p>
+    </div>
+
+    <div id="main-ui" class="hidden w-full h-full pt-16 px-4 flex flex-col items-center justify-center relative z-10 transition-all duration-1000 opacity-0 ui-layer">
+        <h1 id="title-text" class="text-4xl md:text-6xl font-bold opacity-30 mb-96 orbitron tracking-[0.2em] transition-all duration-500 text-center text-glow drop-shadow-[0_0_15px_rgba(0,255,157,0.5)]">
+            STANDBY
+        </h1>
+        
+        <div class="hacker-panel px-8 py-4 min-w-[350px] max-w-2xl text-center mt-8">
+            <p id="visual-status" class="text-xs font-bold tracking-[0.3em] uppercase transition-colors blink text-white opacity-80">_AWAITING WAKE WORD</p>
+        </div>
+    </div>
+    <div id="debug-log" class="absolute bottom-10 left-10 font-mono text-[10px] text-gray-500 ui-layer">[SYS_LOG]: GYRO ENABLED.</div>
+
+    <script>
+        // ==========================================
+        // THREE.JS 3D SETUP & GYROSCOPE
+        // ==========================================
+        let scene, camera, renderer, coreGroup, coreSphere, ring1, ring2, ring3, particleSystem;
+        let rotSpeedX = 0.005, rotSpeedY = 0.007, pulseSpeed = 0;
+        let current3DState = 'sleep'; 
+        
+        // Gyroscope & Mouse Parallax Variables
+        let targetCamX = 0;
+        let targetCamY = 0;
+
+        function initThreeJS() {
+            const container = document.getElementById('scene-container');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020204, 0.002);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 30;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0x00ff9d, 2, 100);
+            pointLight.position.set(0, 0, 10);
+            scene.add(pointLight);
+
+            coreGroup = new THREE.Group();
+
+            const sphereGeo = new THREE.SphereGeometry(3, 32, 32);
+            const sphereMat = new THREE.MeshStandardMaterial({ color: 0x00ff9d, emissive: 0x00ff9d, emissiveIntensity: 0.8, roughness: 0.1, metalness: 0.9 });
+            coreSphere = new THREE.Mesh(sphereGeo, sphereMat);
+            coreGroup.add(coreSphere);
+
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00bcd4, wireframe: true, transparent: true, opacity: 0.5 });
+            const ringMatOuter = new THREE.MeshBasicMaterial({ color: 0x00ff9d, wireframe: true, transparent: true, opacity: 0.3 });
+
+            ring1 = new THREE.Mesh(new THREE.TorusGeometry(5, 0.2, 16, 100), ringMat);
+            ring2 = new THREE.Mesh(new THREE.TorusGeometry(7, 0.2, 16, 100), ringMat);
+            ring3 = new THREE.Mesh(new THREE.TorusGeometry(9, 0.1, 16, 100), ringMatOuter);
+            
+            ring1.rotation.x = Math.PI / 2;
+            ring2.rotation.y = Math.PI / 4;
+
+            coreGroup.add(ring1); coreGroup.add(ring2); coreGroup.add(ring3);
+            scene.add(coreGroup);
+
+            const particlesGeo = new THREE.BufferGeometry();
+            const posArray = new Float32Array(2000 * 3);
+            for(let i = 0; i < 2000 * 3; i++) posArray[i] = (Math.random() - 0.5) * 150;
+            particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particlesMat = new THREE.PointsMaterial({ size: 0.2, color: 0x00ff9d, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+            particleSystem = new THREE.Points(particlesGeo, particlesMat);
+            scene.add(particleSystem);
+
+            // Listeners for Parallax effect
+            document.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('deviceorientation', onDeviceOrientation);
+
+            animateThreeJS();
+        }
+
+        // --- SENSORS LOGIC ---
+        function onMouseMove(event) {
+            // Converts mouse position to a range of -10 to 10 for camera movement
+            targetCamX = (event.clientX - window.innerWidth / 2) * 0.02;
+            targetCamY = (event.clientY - window.innerHeight / 2) * 0.02;
+        }
+
+        function onDeviceOrientation(event) {
+            if (event.gamma !== null && event.beta !== null) {
+                // gamma is left/right tilt, beta is front/back tilt
+                targetCamX = event.gamma * 0.2; 
+                targetCamY = (event.beta - 45) * 0.2; // -45 assumes user holds device slightly tilted
+            }
+        }
+
+        function animateThreeJS() {
+            requestAnimationFrame(animateThreeJS);
+
+            let speedMult = 1;
+            if (current3DState === 'sleep') speedMult = 0.5;
+            if (current3DState === 'listen') speedMult = 1.5;
+            if (current3DState === 'think') speedMult = 3.0;
+            
+            coreGroup.rotation.y += rotSpeedY * speedMult;
+            ring1.rotation.x += rotSpeedX * 2 * speedMult;
+            ring2.rotation.y -= rotSpeedY * 1.5 * speedMult;
+            ring3.rotation.z += rotSpeedX * speedMult;
+
+            if (current3DState === 'speak') {
+                pulseSpeed += 0.1;
+                const scale = 1 + Math.sin(pulseSpeed) * 0.2; 
+                coreSphere.scale.set(scale, scale, scale);
+                coreSphere.material.emissiveIntensity = 1.5;
+            } else {
+                coreSphere.scale.lerp(new THREE.Vector3(1,1,1), 0.1);
+            }
+
+            particleSystem.rotation.y += 0.0005;
+
+            // Apply Gyroscope / Mouse Parallax smoothly to camera
+            camera.position.x += (targetCamX - camera.position.x) * 0.05;
+            camera.position.y += (-targetCamY - camera.position.y) * 0.05;
+            camera.lookAt(scene.position); // Always keep the core in the center
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==========================================
+        // NEURONOVA LOGIC 
+        // ==========================================
+        let API_KEY = localStorage.getItem("neuronova_key") || "";
+        let isAwake = false, isSpeaking = false, isListening = false, neuroNovaVoice = null;
+
+        const elements = {
+            setupScreen: document.getElementById('setup-screen'), mainUi: document.getElementById('main-ui'),
+            apiInput: document.getElementById('api-input'), btnIgnite: document.getElementById('btn-ignite'),
+            btnReboot: document.getElementById('btn-reboot'), btnExit: document.getElementById('btn-exit'),
+            titleText: document.getElementById('title-text'), visualStatus: document.getElementById('visual-status'),
+            micDot: document.getElementById('mic-status-dot'), micText: document.getElementById('mic-text'),
+            debugLog: document.getElementById('debug-log'), setupError: document.getElementById('setup-error')
+        };
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-IN'; recognition.continuous = true; recognition.interimResults = false;
+
+        window.speechSynthesis.onvoiceschanged = () => {
+            let voices = window.speechSynthesis.getVoices();
+            neuroNovaVoice = voices.find(v => v.name.includes('Google UK English Male')) || voices[0];
+        };
+
+        window.onload = () => {
+            initThreeJS(); 
+            if(API_KEY) { elements.apiInput.value = API_KEY; }
+        }
+
+        elements.btnIgnite.onclick = async () => {
+            const val = elements.apiInput.value.trim();
+            if(val.length < 10) { triggerError("PROVIDE VALID KEY"); return; }
+            API_KEY = val; localStorage.setItem("neuronova_key", API_KEY);
+            elements.setupScreen.classList.add("opacity-0", "scale-95");
+            setTimeout(() => {
+                elements.setupScreen.classList.add("hidden");
+                elements.mainUi.classList.remove("hidden");
+                setTimeout(() => elements.mainUi.classList.remove("opacity-0"), 100);
+                setCoreState('sleep'); startMic();
+                
+                // Extra check to ask for iOS Gyro permission if needed
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().catch(console.error);
+                }
+            }, 500);
+        };
+
+        function startMic() { if (!isSpeaking && !isListening) { try { recognition.start(); } catch(e) {} } }
+        recognition.onstart = () => { 
+            isListening = true; 
+            elements.micDot.style.backgroundColor = "#00ff9d"; elements.micDot.style.boxShadow = "0 0 15px #00ff9d";
+            elements.micText.innerText = "ONLINE"; elements.micText.style.color = "#00ff9d"; 
+        };
+        recognition.onend = () => { 
+            isListening = false; 
+            elements.micDot.style.backgroundColor = "#ff3838"; elements.micDot.style.boxShadow = "0 0 10px #ff3838";
+            elements.micText.innerText = "OFFLINE"; elements.micText.style.color = "#ff3838"; 
+            if (!isSpeaking) setTimeout(startMic, 500); 
+        };
+
+        function wakeUp() { isAwake = true; document.body.classList.remove('error-mode'); setCoreState('listen'); speak("NeuroNova systems online, Boss. Ready."); }
+        function goToSleep() { isAwake = false; speak("Disengaging Core."); setTimeout(() => setCoreState('sleep'), 2000); }
+
+        recognition.onresult = async (event) => {
+            const command = event.results[event.results.length - 1][0].transcript.trim().toLowerCase(); 
+            elements.debugLog.innerText = `[SYS_LOG HEARD]: "${command}"`;
+            if(!isAwake) { if(command.includes("wake up baby") || command.includes("wakeup")) wakeUp(); return; }
+            recognition.stop(); setCoreState('think');
+            
+            if(command.includes("ha bhai kaisa hai")) { speak("ekdum mast hu meri jaan tu bata tu kaisa hai."); return; }
+            if(command.includes("sleep")) { goToSleep(); return; }
+            
+            await hitGeminiAPI(command);
+        };
+
+        async function hitGeminiAPI(prompt) {
+            if (!API_KEY) return triggerError("API MISSING");
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `You are NeuroNova. Address user as Boss. Reply extremely shortly in user's language. User said: ${prompt}` }] }] })
+                });
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                const data = await response.json();
+                document.body.classList.remove('error-mode');
+                speak(data.candidates[0].content.parts[0].text.replace(/\*/g, ''));
+            } catch(e) {
+                elements.debugLog.innerText = `[SYS_LOG ERR]: ${e.message}`; triggerError("NETWORK BLOCK"); speak("Connection failed.");
+            }
+        }
+
+        function speak(text) {
+            isSpeaking = true; recognition.stop(); window.speechSynthesis.cancel(); 
+            setCoreState('speak');
+            const utt = new SpeechSynthesisUtterance(text); 
+            if (neuroNovaVoice) utt.voice = neuroNovaVoice; utt.lang = 'en-GB'; utt.rate = 1.0;
+            utt.onend = () => { isSpeaking = false; if(isAwake) setCoreState('listen'); startMic(); };
+            window.speechSynthesis.speak(utt);
+        }
+
+        function setCoreState(state) {
+            current3DState = state; 
+
+            if(state === 'sleep') { 
+                elements.titleText.innerText = "STANDBY"; elements.titleText.classList.replace('opacity-100', 'opacity-30');
+                elements.visualStatus.innerText = "_AWAITING WAKE WORD"; elements.visualStatus.classList.add('blink'); 
+                coreSphere.material.color.setHex(0x00ff9d); coreSphere.material.emissiveIntensity = 0.5;
+            } 
+            else if (state === 'listen') { 
+                elements.titleText.innerText = "NEURONOVA"; elements.titleText.classList.replace('opacity-30', 'opacity-100');
+                elements.visualStatus.innerText = "> LISTENING CHANNEL OPEN"; elements.visualStatus.classList.remove('blink');
+                coreSphere.material.color.setHex(0x00ffff); coreSphere.material.emissiveIntensity = 1.0;
+            }
+            else if (state === 'think') { 
+                elements.visualStatus.innerText = "PROCESSING DATA..."; elements.visualStatus.classList.add('blink'); 
+                coreSphere.material.color.setHex(0xff00ff); coreSphere.material.emissiveIntensity = 1.2;
+            }
+            else if (state === 'speak') { 
+                elements.visualStatus.innerText = ">> SECURE AUDIO TRANSMISSION <<"; elements.visualStatus.classList.remove('blink'); 
+                coreSphere.material.color.setHex(0xffffff); 
+            }
+        }
+
+        function triggerError(msg) { 
+            document.body.classList.add('error-mode'); 
+            elements.titleText.innerText = msg; elements.titleText.classList.replace('opacity-30', 'opacity-100');
+            elements.visualStatus.innerText = ">> CRITICAL ERROR DETECTED <<"; elements.setupError.innerText = msg;
+            current3DState = 'think'; 
+            coreSphere.material.color.setHex(0xff0000); coreSphere.material.emissive.setHex(0xff0000);
+        }
+
+        elements.btnReboot.onclick = () => location.reload();
+        elements.btnExit.onclick = () => { localStorage.removeItem("neuronova_key"); location.reload(); };
+    </script>
+</body>
+</html>
