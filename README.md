@@ -52,4 +52,4 @@ Browsers block Microphone and API requests on static local files for security. F
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/yourusername/neuronova-3d.git](https://github.com/yourusername/neuronova-3d.git)
+   git clone [https://github.com/Suyash-coder-12/neuronova-3d.git](https://github.com/Suyash-coder-12/neuronova-3d.git)
