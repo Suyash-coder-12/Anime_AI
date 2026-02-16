@@ -11,7 +11,7 @@
 
   <br>
 
-  <a href="https://tera-live-link-yaha-daal.com" target="_blank">
+  <a href="https://anime-ai-gamma.vercel.app/" target="_blank">
     <img src="https://raw.githubusercontent.com/nelsonjchen/github-readme-animated-demo/master/demo.gif" width="220" alt="Click for Live Demo">
   </a>
   <p><i>👆 Click the button above to view the Live Demo! 👆</i></p>
