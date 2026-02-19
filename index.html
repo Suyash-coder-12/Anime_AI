@@ -258,7 +258,7 @@
             if(!isAwake) { if(command.includes("wake up, baby") || command.includes("wakeup")) wakeUp(); return; }
             recognition.stop(); setCoreState('think');
             
-            if(command.includes("ha bhai kaisa hai")) { speak("ekdum mast hu meri jaan tu bata tu kaisa hai."); return; }
+            if(command.includes("bhai kaisa hai")) { speak("ekdum mast hu meri jaan tu bata tu kaisa hai."); return; }
             if(command.includes("sleep")) { goToSleep(); return; }
             
             await hitGeminiAPI(command);
