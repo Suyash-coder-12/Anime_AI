@@ -255,7 +255,7 @@
         recognition.onresult = async (event) => {
             const command = event.results[event.results.length - 1][0].transcript.trim().toLowerCase(); 
             elements.debugLog.innerText = `[SYS_LOG HEARD]: "${command}"`;
-            if(!isAwake) { if(command.includes("wake up, baby") || command.includes("wakeup")) wakeUp(); return; }
+            if(!isAwake) { if(command.includes("wake up baby") || command.includes("wakeup")) wakeUp(); return; }
             recognition.stop(); setCoreState('think');
             
             if(command.includes("bhai kaisa hai")) { speak("ekdum mast hu meri jaan tu bata tu kaisa hai."); return; }
